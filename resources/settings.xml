@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<settings>
+    <category label="General">
+        <setting id="enable_verbose_logging" type="bool" label="Enable verbose logging" default="false" />
+        <setting id="editor_shortcut_key" type="text" label="Keyboard shortcut key (single character, used with CTRL modifier)" default="e" tooltip="The keyboard shortcut will be CTRL+[this key]. For example, setting this to 'e' will create a CTRL+E shortcut. This avoids conflicts with Kodi's default keybindings." />
+        
+        <setting id="predefined_labels" 
+                 type="text" 
+                 label="Predefined Segment Labels" 
+                 default="Intro,Recap,Credits,Commercial,Ad,Sponsor,Outro,Prologue,Epilogue,Preview,Next Time On,Previously On"
+                 tooltip="Comma-separated list of predefined labels for segments. These will appear in a dropdown when adding/editing segments." />
+        
+        <setting id="save_format"
+                 type="labelenum"
+                 label="Save Format"
+                 default="Auto Detect"
+                 values="Auto Detect|EDL Only|Chapter XML Only|Both Formats"
+                 optionvalues="auto|edl|xml|both"
+                 tooltip="Choose which format to save segments in. 'Auto Detect' uses the format of existing files, or EDL if none exist." />
+        
+        <setting id="action_mapping"
+                 type="text"
+                 label="Action Mapping"
+                 default="4:Segment,5:Intro,6:Ad,7:Commercial,8:Credits,9:Recap,10:Prologue,11:Epilogue"
+                 tooltip="Format: action_type:label. Example: 4:Segment,5:Intro,6:Ad,7:Credits. Action type number is used for EDL file, label is used for chapter XML file." />
+        
+        <setting id="set_file_permissions"
+                 type="bool"
+                 label="Set File Permissions (666)"
+                 default="true"
+                 tooltip="Attempt to set file permissions to 666 (rw-rw-rw-) after saving. Only works for local filesystem paths, not network paths (nfs://, smb://). For network paths, permissions are controlled by the server." />
+        
+        <setting id="enable_fullscreen_overlay"
+                 type="bool"
+                 label="Enable Full-Screen Dark Overlay"
+                 default="false"
+                 tooltip="When enabled, darkens the entire video screen behind the editor dialog. When disabled, the video remains fully visible, making it easier to see the video while setting start and end times." />
+    </category>
+</settings>
+

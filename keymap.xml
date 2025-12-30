@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<keymap>
+  <global>
+    <keyboard>
+      <e mod="ctrl">RunScript(service.segmenteditor)</e>
+    </keyboard>
+  </global>
+  <FullscreenVideo>
+    <keyboard>
+      <e mod="ctrl">RunScript(service.segmenteditor)</e>
+    </keyboard>
+  </FullscreenVideo>
+  <VideoOSD>
+    <keyboard>
+      <e mod="ctrl">RunScript(service.segmenteditor)</e>
+    </keyboard>
+  </VideoOSD>
+</keymap>
