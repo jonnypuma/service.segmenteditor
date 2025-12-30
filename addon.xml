@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <addon id="service.segmenteditor"
-       name="Segment Editor"
+       name="Skippy McSkipface"
        version="1.0.0"
        provider-name="SegmentEditor">
        
@@ -29,6 +29,10 @@
         <assets>
             <icon>icon.png</icon>
             <fanart>fanart.png</fanart>
+            <screenshot>screenshot01.png</screenshot>
+            <screenshot>screenshot02.png</screenshot>
+            <screenshot>screenshot03.png</screenshot>
+            <screenshot>screenshot04.png</screenshot>
         </assets>
         <license>GPL-2.0-or-later</license>
         <forum>https://forum.kodi.tv</forum>
