@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.2
+
+### Changes
+- Added overlay for button rows to provide better contrast against video underneath.
+
+## 1.0.1
+
+### Changes
+- Updated provider name
+
 ## 1.0.0 (Initial Release)
 
 ### Features

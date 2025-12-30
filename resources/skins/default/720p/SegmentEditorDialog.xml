@@ -344,6 +344,16 @@
         <ondown>5000</ondown>
       </control>
 
+      <!-- Darkening overlay for bottom button rows (seek row and action row) -->
+      <control type="image">
+        <left>0</left>
+        <top>450</top>
+        <width>1170</width>
+        <height>120</height>
+        <texture>white.png</texture>
+        <colordiffuse>E0000000</colordiffuse>
+      </control>
+
       <!-- Seek controls row -->
       <control type="label">
         <left>35</left>
