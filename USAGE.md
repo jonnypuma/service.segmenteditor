@@ -141,4 +141,5 @@ You can add a context menu item by creating a `context.xml` file, but this requi
 - The editor works while video is playing - playback continues in the background
 - The editor automatically detects existing segment files (.edl or .xml)
 - If no segment file exists, you can create one using the "Add" button
+- Press `Enter`/`Select` on a list item to jump playback to the start of that segment
 

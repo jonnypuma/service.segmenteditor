@@ -174,16 +174,22 @@ The editor displays:
     - End time (HH:MM:SS.mmm or seconds)
     - Label (predefined options or custom)
 
-**5. Edit Segments**
+**5. Navigate to Segments**
+
+- **Jump to Segment Start**: 
+  - Select a segment in the list
+  - Press `Enter` or `Select` to jump playback to the start of that segment
+  - This allows you to quickly navigate to any segment in the video
+
+**6. Edit Segments**
 
 - **Edit Button**: 
   - Select a segment in the list (Edit and Delete buttons appear next to the selected segment)
-  - Click "Edit" to modify the segment
-  - **Keyboard Shortcut**: Press `Enter` or `Select` while a segment is selected in the list
+  - Click "Edit" button (or press `Right` arrow to focus it, then `Enter`) to modify the segment
   - You can change start time, end time, and label
   - Marked times (if any) will be offered as defaults
 
-**6. Delete Segments**
+**7. Delete Segments**
 
 - **Delete Button**: 
   - Select a segment in the list
@@ -196,7 +202,7 @@ The editor displays:
   - Located in the bottom button row
   - A confirmation dialog will appear
 
-**7. Save and Exit**
+**8. Save and Exit**
 
 - **Save Button**: 
   - Saves all changes to the segment file
@@ -215,7 +221,8 @@ All keyboard shortcuts only work when the segment list is focused:
 - `S`: Set current position as start
 - `E`: Set current position as end
 - `D`: Delete selected segment
-- `Enter`/`Select`: Edit selected segment
+- `Enter`/`Select`: Jump playback to the start of the selected segment
+- `Right` arrow: Focus the Edit button for the selected segment
 - `ESC`/`Back`: Exit editor (discard changes)
 
 #### Button Reference
