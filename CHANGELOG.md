@@ -3,7 +3,9 @@
 ## 1.0.2
 
 ### Changes
-- Added overlay for button rows to provide better contrast against video underneath.
+- Added darkening overlay behind bottom button rows (seek row and action row) for improved visibility
+- Added warning dialog when exiting with unsaved changes
+- Press Enter/Select on a list item to jump playback to the start of that segment
 
 ## 1.0.1
 

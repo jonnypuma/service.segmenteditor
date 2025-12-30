@@ -350,11 +350,11 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
         elif controlId == 5006:  # Save
             log("💾 Save button clicked")
             self.save_segments()
-        elif controlId == 5007:  # Cancel
-            log("❌ Cancel button clicked")
-            self.segments_modified = False
-            self._closing = True
-            self.close()
+        elif controlId == 5007:  # Exit
+            log("❌ Exit button clicked")
+            if self.check_unsaved_changes():
+                self._closing = True
+                self.close()
         elif controlId == 5009:  # Seek back 5s
             log("⏪ Seek -5s button clicked")
             self.seek_relative(-5)
@@ -409,8 +409,8 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
         # ESC or Back button
         if action_id in [10, 92]:
             log("🔙 ESC/Back pressed")
-            self.segments_modified = False
-            self.close()
+            if self.check_unsaved_changes():
+                self.close()
             return
         
         # Enter/Select - handle for both list and buttons
@@ -787,6 +787,29 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
         
         # Update previous focus for next time
         self._previous_focus = controlId
+    
+    def check_unsaved_changes(self):
+        """Check if there are unsaved changes and prompt user if needed. Returns True if should exit, False if should cancel."""
+        if self.segments_modified:
+            log("⚠️ Unsaved changes detected - showing warning dialog")
+            dialog = xbmcgui.Dialog()
+            result = dialog.yesno(
+                "Segment Editor",
+                "You have unsaved changes.",
+                "Exit without saving?",
+                nolabel="Cancel",
+                yeslabel="Exit"
+            )
+            if result:
+                log("✅ User confirmed exit without saving")
+                self.segments_modified = False
+                return True
+            else:
+                log("❌ User cancelled exit - staying in editor")
+                return False
+        else:
+            # No unsaved changes, safe to exit
+            return True
     
     def jump_to_segment_start(self):
         """Jump playback to the start of the selected segment"""

@@ -110,6 +110,7 @@ The editor displays:
 - **Current Time Display**: Shows the current playback position with `[PAUSED]` indicator when video is paused
 - **Status Area**: Displays marked start/end times and validation warnings
 - **Segment Indicators**: Segments are marked with "(Nested)" if fully contained within another segment, or "(Overlapping)" if they partially overlap with another segment
+- **Darkening Overlay**: A semi-transparent overlay behind the bottom button rows improves visibility when the video background is bright
 
 #### Main Functions
 
@@ -212,7 +213,8 @@ The editor displays:
 
 - **Exit Button**: 
   - Closes the editor without saving changes (if any)
-  - **Keyboard Shortcut**: Press `ESC` or `Back` key
+  - **Warning Dialog**: If you have unsaved changes, a warning dialog will appear asking if you want to exit without saving
+  - **Keyboard Shortcut**: Press `ESC` or `Back` key (also shows warning if there are unsaved changes)
 
 #### Keyboard Shortcuts
 
@@ -307,6 +309,8 @@ The addon automatically detects which format to use based on existing files, and
 - **Validation**: The system prevents setting invalid start/end time combinations (start after end, end before start)
 - **Edit/Delete Buttons**: Edit and Delete buttons are only visible when at least one segment exists
 - **Segment Indicators**: Visual indicators show nested and overlapping segments for better organization
+- **Unsaved Changes Warning**: A warning dialog appears when exiting with unsaved changes, preventing accidental data loss
+- **Darkening Overlay**: Bottom button rows have a darkening overlay for improved visibility against bright video backgrounds
 
 ## Troubleshooting
 
