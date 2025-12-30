@@ -1,3 +1,5 @@
+<img width="815" height="810" alt="icon" src="https://github.com/user-attachments/assets/a9f21f0f-75a8-4eed-90a0-64bf8ea6a2eb" />
+
 # Segment Editor - Kodi Addon
 
 A Kodi service addon that allows you to edit EDL and chapter.xml segment files while watching videos.
@@ -316,4 +318,5 @@ The addon automatically detects which format to use based on existing files, and
 ## Based on Skippy Addon
 
 This addon uses code patterns and segment parsing logic from the [Skippy addon](https://github.com/jonnypuma/service.skippy) for consistency.
+
 
