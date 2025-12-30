@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.3
+
+### Bug Fixes
+- Added warning dialog error when exiting with unsaved changes (TypeError with yes/no dialog arguments)
+
 ## 1.0.2
 
 ### Changes

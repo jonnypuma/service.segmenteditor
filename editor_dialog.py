@@ -790,26 +790,28 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
     
     def check_unsaved_changes(self):
         """Check if there are unsaved changes and prompt user if needed. Returns True if should exit, False if should cancel."""
-        if self.segments_modified:
-            log("⚠️ Unsaved changes detected - showing warning dialog")
-            dialog = xbmcgui.Dialog()
-            result = dialog.yesno(
-                "Segment Editor",
-                "You have unsaved changes.",
-                "Exit without saving?",
-                nolabel="Cancel",
-                yeslabel="Exit"
-            )
-            if result:
-                log("✅ User confirmed exit without saving")
-                self.segments_modified = False
-                return True
-            else:
-                log("❌ User cancelled exit - staying in editor")
-                return False
-        else:
+        if not self.segments_modified:
             # No unsaved changes, safe to exit
+            log("✅ No unsaved changes - safe to exit")
             return True
+        
+        # Has unsaved changes - show warning dialog with custom button labels
+        log("⚠️ Unsaved changes detected - showing warning dialog")
+        dialog = xbmcgui.Dialog()
+        # Use only 2 positional args to avoid conflict with keyword args
+        result = dialog.yesno(
+            "Segment Editor",
+            "You have unsaved changes.\nExit without saving?",
+            yeslabel="Yes",
+            nolabel="Cancel"
+        )
+        if result:
+            log("✅ User confirmed exit without saving (clicked Yes)")
+            self.segments_modified = False
+            return True
+        else:
+            log("❌ User cancelled exit - staying in editor (clicked Cancel)")
+            return False
     
     def jump_to_segment_start(self):
         """Jump playback to the start of the selected segment"""
