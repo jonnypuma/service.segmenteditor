@@ -308,5 +308,6 @@ The addon automatically detects which format to use based on existing files, and
 
 ## Based on Skippy Addon
 
-This addon uses code patterns and segment parsing logic from the [Skippy addon](https://github.com/your-repo/service.skippy) for consistency.
+This addon uses code patterns and segment parsing logic from the [Skippy addon](https://github.com/jonnypuma/service.skippy) for consistency.
+
 
