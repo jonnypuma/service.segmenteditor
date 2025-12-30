@@ -354,23 +354,9 @@
         <colordiffuse>E0000000</colordiffuse>
       </control>
 
-      <!-- Seek controls row -->
-      <control type="label">
-        <left>35</left>
-        <top>460</top>
-        <width>200</width>
-        <height>25</height>
-        <label>Seek:</label>
-        <font>font14</font>
-        <textcolor>FFB0B0B0</textcolor>
-        <shadowcolor>FF000000</shadowcolor>
-        <shadowoffsetx>1</shadowoffsetx>
-        <shadowoffsety>1</shadowoffsety>
-        <align>left</align>
-      </control>
-
+      <!-- Seek controls row - centered horizontally with 20px margins -->
       <control type="button" id="5011">
-        <left>95</left>
+        <left>20</left>
         <top>460</top>
         <width>50</width>
         <height>30</height>
@@ -391,7 +377,7 @@
       </control>
 
       <control type="button" id="5010">
-        <left>155</left>
+        <left>80</left>
         <top>460</top>
         <width>50</width>
         <height>30</height>
@@ -413,7 +399,7 @@
       </control>
 
       <control type="button" id="5009">
-        <left>215</left>
+        <left>140</left>
         <top>460</top>
         <width>50</width>
         <height>30</height>
@@ -435,7 +421,7 @@
       </control>
 
       <control type="button" id="5019">
-        <left>275</left>
+        <left>200</left>
         <top>460</top>
         <width>50</width>
         <height>30</height>
@@ -457,7 +443,7 @@
       </control>
 
       <control type="button" id="5020">
-        <left>335</left>
+        <left>260</left>
         <top>460</top>
         <width>50</width>
         <height>30</height>
@@ -479,7 +465,7 @@
       </control>
 
       <control type="button" id="5012">
-        <left>395</left>
+        <left>320</left>
         <top>460</top>
         <width>50</width>
         <height>30</height>
@@ -501,7 +487,7 @@
       </control>
 
       <control type="button" id="5013">
-        <left>455</left>
+        <left>380</left>
         <top>460</top>
         <width>50</width>
         <height>30</height>
@@ -523,7 +509,7 @@
       </control>
 
       <control type="button" id="5014">
-        <left>515</left>
+        <left>440</left>
         <top>460</top>
         <width>50</width>
         <height>30</height>
@@ -546,9 +532,9 @@
 
       <!-- Pause/Play button -->
       <control type="button" id="5018">
-        <left>575</left>
+        <left>500</left>
         <top>460</top>
-        <width>70</width>
+        <width>75</width>
         <height>30</height>
         <label>Pause</label>
         <font>font10</font>
@@ -569,9 +555,9 @@
 
       <!-- Mark buttons -->
       <control type="button" id="5015">
-        <left>655</left>
+        <left>583</left>
         <top>460</top>
-        <width>130</width>
+        <width>95</width>
         <height>30</height>
         <label>Set as Start</label>
         <font>font10</font>
@@ -591,9 +577,9 @@
       </control>
 
       <control type="button" id="5016">
-        <left>795</left>
+        <left>686</left>
         <top>460</top>
-        <width>130</width>
+        <width>95</width>
         <height>30</height>
         <label>Set as End</label>
         <font>font10</font>
@@ -613,11 +599,11 @@
       </control>
 
       <control type="button" id="5017">
-        <left>935</left>
+        <left>789</left>
         <top>460</top>
-        <width>200</width>
+        <width>70</width>
         <height>30</height>
-        <label>Add with Marked Times</label>
+        <label>Create</label>
         <font>font10</font>
         <textcolor>lightgrey</textcolor>
         <textcolorfocus>FFFFFFFF</textcolorfocus>
@@ -630,12 +616,78 @@
         <align>center</align>
         <onup>5000</onup>
         <onleft>5016</onleft>
+        <onright>5023</onright>
         <ondown>5005</ondown>
       </control>
 
+      <control type="button" id="5023">
+        <left>867</left>
+        <top>460</top>
+        <width>135</width>
+        <height>30</height>
+        <label>Start at End of</label>
+        <font>font10</font>
+        <textcolor>lightgrey</textcolor>
+        <textcolorfocus>FFFFFFFF</textcolorfocus>
+        <texturenofocus>-</texturenofocus>
+        <texturefocus>button_focus.png</texturefocus>
+        <shadowcolor>FF000000</shadowcolor>
+        <shadowoffsetx>1</shadowoffsetx>
+        <shadowoffsety>1</shadowoffsety>
+        <aligny>center</aligny>
+        <align>center</align>
+        <onup>5000</onup>
+        <onleft>5017</onleft>
+        <onright>5024</onright>
+        <ondown>5005</ondown>
+      </control>
+
+      <control type="button" id="5024">
+        <left>1010</left>
+        <top>460</top>
+        <width>135</width>
+        <height>30</height>
+        <label>End at Start of</label>
+        <font>font10</font>
+        <textcolor>lightgrey</textcolor>
+        <textcolorfocus>FFFFFFFF</textcolorfocus>
+        <texturenofocus>-</texturenofocus>
+        <texturefocus>button_focus.png</texturefocus>
+        <shadowcolor>FF000000</shadowcolor>
+        <shadowoffsetx>1</shadowoffsetx>
+        <shadowoffsety>1</shadowoffsety>
+        <aligny>center</aligny>
+        <align>center</align>
+        <onup>5000</onup>
+        <onleft>5023</onleft>
+        <ondown>5005</ondown>
+      </control>
+
+
       <!-- Buttons -->
+      <control type="button" id="5025">
+        <left>20</left>
+        <top>500</top>
+        <width>135</width>
+        <height>40</height>
+        <label>Jump To</label>
+        <font>font10</font>
+        <textcolor>lightgrey</textcolor>
+        <textcolorfocus>FFFFFFFF</textcolorfocus>
+        <texturenofocus>-</texturenofocus>
+        <texturefocus>button_focus.png</texturefocus>
+        <shadowcolor>FF000000</shadowcolor>
+        <shadowoffsetx>2</shadowoffsetx>
+        <shadowoffsety>2</shadowoffsety>
+        <aligny>center</aligny>
+        <align>center</align>
+        <onup>5009</onup>
+        <onright>5005</onright>
+        <ondown>5000</ondown>
+      </control>
+
       <control type="button" id="5005">
-        <left>165</left>
+        <left>192</left>
         <top>500</top>
         <width>280</width>
         <height>40</height>
@@ -651,14 +703,15 @@
         <aligny>center</aligny>
         <align>center</align>
         <onup>5009</onup>
+        <onleft>5025</onleft>
         <onright>5002</onright>
         <ondown>5000</ondown>
       </control>
 
       <control type="button" id="5002">
-        <left>455</left>
+        <left>509</left>
         <top>500</top>
-        <width>240</width>
+        <width>250</width>
         <height>40</height>
         <label>Add Manual Start and End Points</label>
         <font>font10</font>
@@ -678,7 +731,7 @@
       </control>
 
       <control type="button" id="5004">
-        <left>705</left>
+        <left>796</left>
         <top>500</top>
         <width>120</width>
         <height>40</height>
@@ -700,7 +753,7 @@
       </control>
 
       <control type="button" id="5006">
-        <left>835</left>
+        <left>953</left>
         <top>500</top>
         <width>80</width>
         <height>40</height>
@@ -722,7 +775,7 @@
       </control>
 
       <control type="button" id="5007">
-        <left>925</left>
+        <left>1070</left>
         <top>500</top>
         <width>80</width>
         <height>40</height>

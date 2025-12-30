@@ -87,7 +87,7 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
             
             # Make sure all buttons are visible and enabled
             try:
-                button_ids = [5002, 5003, 5004, 5005, 5006, 5007, 5009, 5010, 5011, 5012, 5013, 5014, 5015, 5016, 5017, 5018, 5019, 5020, 5021, 5022]
+                button_ids = [5002, 5003, 5004, 5005, 5006, 5007, 5009, 5010, 5011, 5012, 5013, 5014, 5015, 5016, 5017, 5018, 5019, 5020, 5021, 5022, 5023, 5024, 5025]
                 for btn_id in button_ids:
                     try:
                         btn = self.getControl(btn_id)
@@ -297,10 +297,13 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
             self.list_control.addItems(items)
             
             # Show/hide Edit and Delete buttons based on whether there are segments
+            # Also set HasSegments property for new buttons visibility
             try:
+                has_segments = len(self.segments) > 0
+                self.setProperty("HasSegments", "true" if has_segments else "false")
+                
                 edit_btn = self.getControl(5021)
                 delete_btn = self.getControl(5022)
-                has_segments = len(self.segments) > 0
                 if edit_btn:
                     edit_btn.setVisible(has_segments)
                 if delete_btn:
@@ -388,9 +391,18 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
         elif controlId == 5017:  # Add with marked times
             log("➕ Add with marked times button clicked")
             self.add_with_marked_times()
+        elif controlId == 5023:  # Start at End of
+            log("📍 Start at End of segment button clicked")
+            self.start_at_end_of_segment()
+        elif controlId == 5024:  # End at Start of
+            log("📍 End at Start of segment button clicked")
+            self.end_at_start_of_segment()
         elif controlId == 5018:  # Pause/Play toggle
             log("⏸️ Pause/Play button clicked")
             self.toggle_pause()
+        elif controlId == 5025:  # Jump To
+            log("⏩ Jump To button clicked")
+            self.jump_to_time()
         elif controlId == 5021:  # Edit button in list item
             log("✏️ Edit button in list item clicked")
             self.edit_segment()
@@ -423,7 +435,7 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
                 self.jump_to_segment_start()
                 return  # Don't process further
             # For buttons, only activate on explicit Select press
-            elif focused in [5009, 5010, 5011, 5012, 5013, 5014, 5015, 5016, 5017, 5018, 5019, 5020, 5002, 5004, 5005, 5006, 5007, 5021, 5022]:
+            elif focused in [5009, 5010, 5011, 5012, 5013, 5014, 5015, 5016, 5017, 5018, 5019, 5020, 5002, 5004, 5005, 5006, 5007, 5021, 5022, 5023, 5024, 5025]:
                 # Set flag to indicate this is an explicit click
                 self._explicit_click = True
                 # Trigger onClick for the focused button
@@ -842,6 +854,51 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
         except Exception as e:
             log(f"❌ Error seeking: {e}")
     
+    def jump_to_time(self):
+        """Jump to a specific time entered by the user"""
+        try:
+            if not self.player.isPlayingVideo():
+                xbmcgui.Dialog().ok("Segment Editor", "Cannot jump - video is not playing.")
+                return
+            
+            current = self.player.getTime()
+            current_hms = seconds_to_hms(current)
+            
+            time_str = xbmcgui.Dialog().input(
+                "Jump To Time (HH:MM:SS.mmm or seconds)",
+                defaultt=current_hms
+            )
+            
+            if not time_str:
+                return  # User cancelled
+            
+            # Parse the time input
+            try:
+                if ":" in time_str:
+                    target_time = hms_to_seconds(time_str)
+                else:
+                    target_time = float(time_str)
+                
+                if target_time < 0:
+                    xbmcgui.Dialog().ok("Segment Editor", "Time cannot be negative.")
+                    return
+                
+                self.player.seekTime(target_time)
+                log(f"⏩ Jumped to time: {target_time:.2f}s ({seconds_to_hms(target_time)})")
+                xbmcgui.Dialog().notification(
+                    "Segment Editor",
+                    f"Jumped to {seconds_to_hms(target_time)}",
+                    icon=self.icon_path,
+                    time=2000
+                )
+            except ValueError:
+                xbmcgui.Dialog().ok("Segment Editor", "Invalid time format. Use HH:MM:SS.mmm or seconds.")
+            except Exception as e:
+                log(f"❌ Error jumping to time: {e}")
+                xbmcgui.Dialog().ok("Segment Editor", f"Error: {str(e)}")
+        except Exception as e:
+            log(f"❌ Error in jump_to_time: {e}")
+    
     def toggle_pause(self):
         """Toggle pause/play state"""
         try:
@@ -872,8 +929,20 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
             log(f"❌ Error toggling pause: {e}")
     
     def set_as_start(self):
-        """Mark current playback position as segment start"""
+        """Mark current playback position as segment start (toggles if already marked)"""
         try:
+            # Toggle: if start is already marked, clear it
+            if self.pending_start_time is not None:
+                log("📍 Start time already marked - clearing it")
+                self.pending_start_time = None
+                xbmcgui.Dialog().notification(
+                    "Segment Editor",
+                    "Start time cleared",
+                    icon=self.icon_path,
+                    time=2000
+                )
+                return
+            
             if self.player.isPlayingVideo():
                 new_start = self.player.getTime()
                 
@@ -900,8 +969,20 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
             log(f"❌ Error marking start: {e}")
     
     def set_as_end(self):
-        """Mark current playback position as segment end"""
+        """Mark current playback position as segment end (toggles if already marked)"""
         try:
+            # Toggle: if end is already marked, clear it
+            if self.pending_end_time is not None:
+                log("📍 End time already marked - clearing it")
+                self.pending_end_time = None
+                xbmcgui.Dialog().notification(
+                    "Segment Editor",
+                    "End time cleared",
+                    icon=self.icon_path,
+                    time=2000
+                )
+                return
+            
             if self.player.isPlayingVideo():
                 new_end = self.player.getTime()
                 
@@ -926,6 +1007,93 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
                 )
         except Exception as e:
             log(f"❌ Error marking end: {e}")
+    
+    def select_segment_from_list(self, title):
+        """Show a dialog to select a segment from the list. Returns segment index or None if cancelled."""
+        if not self.segments:
+            xbmcgui.Dialog().ok("Segment Editor", "No segments available to select.")
+            return None
+        
+        # Build list of segment descriptions
+        options = []
+        for i, seg in enumerate(self.segments):
+            label = seg.raw_label if hasattr(seg, 'raw_label') else seg.segment_type_label
+            start_hms = seconds_to_hms(seg.start_seconds)
+            end_hms = seconds_to_hms(seg.end_seconds)
+            options.append(f"Segment {i+1}: {label} ({start_hms} → {end_hms})")
+        
+        selected = xbmcgui.Dialog().select(title, options)
+        if selected >= 0:
+            return selected
+        return None
+    
+    def start_at_end_of_segment(self):
+        """Mark start point at the end of a selected segment"""
+        if not self.segments:
+            xbmcgui.Dialog().ok("Segment Editor", "No segments available.")
+            return
+        
+        seg_index = self.select_segment_from_list("Select Segment (Start at End)")
+        if seg_index is None:
+            return  # User cancelled
+        
+        selected_seg = self.segments[seg_index]
+        new_start = selected_seg.end_seconds
+        
+        # Validate: start must be before end if end is already set
+        if self.pending_end_time is not None and new_start >= self.pending_end_time:
+            xbmcgui.Dialog().ok(
+                "Segment Editor",
+                f"Cannot set start time after end time.\n\n"
+                f"Current end: {seconds_to_hms(self.pending_end_time)}\n"
+                f"Selected start: {seconds_to_hms(new_start)}\n\n"
+                f"Please clear end time first or select a different segment."
+            )
+            return
+        
+        self.pending_start_time = new_start
+        label = selected_seg.raw_label if hasattr(selected_seg, 'raw_label') else selected_seg.segment_type_label
+        log(f"📍 Marked start time at end of segment {seg_index+1} ({label}): {self.pending_start_time:.2f}")
+        xbmcgui.Dialog().notification(
+            "Segment Editor",
+            f"Start marked: {seconds_to_hms(self.pending_start_time)}",
+            icon=self.icon_path,
+            time=2000
+        )
+    
+    def end_at_start_of_segment(self):
+        """Mark end point at the start of a selected segment"""
+        if not self.segments:
+            xbmcgui.Dialog().ok("Segment Editor", "No segments available.")
+            return
+        
+        seg_index = self.select_segment_from_list("Select Segment (End at Start)")
+        if seg_index is None:
+            return  # User cancelled
+        
+        selected_seg = self.segments[seg_index]
+        new_end = selected_seg.start_seconds
+        
+        # Validate: end must be after start if start is already set
+        if self.pending_start_time is not None and new_end <= self.pending_start_time:
+            xbmcgui.Dialog().ok(
+                "Segment Editor",
+                f"Cannot set end time before start time.\n\n"
+                f"Current start: {seconds_to_hms(self.pending_start_time)}\n"
+                f"Selected end: {seconds_to_hms(new_end)}\n\n"
+                f"Please clear start time first or select a different segment."
+            )
+            return
+        
+        self.pending_end_time = new_end
+        label = selected_seg.raw_label if hasattr(selected_seg, 'raw_label') else selected_seg.segment_type_label
+        log(f"📍 Marked end time at start of segment {seg_index+1} ({label}): {self.pending_end_time:.2f}")
+        xbmcgui.Dialog().notification(
+            "Segment Editor",
+            f"End marked: {seconds_to_hms(self.pending_end_time)}",
+            icon=self.icon_path,
+            time=2000
+        )
     
     def get_predefined_labels(self):
         """Get predefined labels from settings"""

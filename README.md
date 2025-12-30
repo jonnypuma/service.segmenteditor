@@ -1,4 +1,5 @@
 <img width="815" height="810" alt="icon" src="https://github.com/user-attachments/assets/a9f21f0f-75a8-4eed-90a0-64bf8ea6a2eb" />
+
 # Segment Editor - Kodi Addon
 
 A Kodi service addon that allows you to edit EDL and chapter.xml segment files while watching videos.
@@ -137,17 +138,35 @@ The editor displays:
   - `+10s`: Seek forward 10 seconds
   - `+30s`: Seek forward 30 seconds
 
+- **Jump To**: 
+  - Click "Jump To" button to jump to a specific time
+  - Enter time in HH:MM:SS.mmm format or seconds
+  - Current time is pre-filled as default
+  - Useful for quickly navigating to specific timestamps
+
 **3. Mark Start/End Points**
 
 - **Set as Start**: Marks the current playback position as the start of a segment
   - **Button**: Click "Set as Start" button
   - **Keyboard Shortcut**: Press `S` while the segment list is focused
   - The marked start time appears in the status area
+  - **Toggle Behavior**: Press "Set as Start" again to clear the marked start time
 
 - **Set as End**: Marks the current playback position as the end of a segment
   - **Button**: Click "Set as End" button
   - **Keyboard Shortcut**: Press `E` while the segment list is focused
   - The marked end time appears in the status area
+  - **Toggle Behavior**: Press "Set as End" again to clear the marked end time
+
+- **Start at End of Segment**: Set start point to the end of an existing segment
+  - **Button**: Click "Start at End of" button
+  - A dialog appears with a list of segments
+  - Select a segment to use its end time as the new start point
+
+- **End at Start of Segment**: Set end point to the start of an existing segment
+  - **Button**: Click "End at Start of" button
+  - A dialog appears with a list of segments
+  - Select a segment to use its start time as the new end point
 
 - **Validation**: 
   - You cannot set start time after end time
@@ -156,9 +175,9 @@ The editor displays:
 
 **4. Add Segments**
 
-- **Add with Marked Times** (Quick Method):
+- **Create** (Quick Method):
   - Mark both start and end points first
-  - Click "Add with Marked Times" to create a segment using the marked times
+  - Click "Create" to create a segment using the marked times
   - You'll be prompted to select or enter a label
 
 - **Add at Current Time + User Set Time**:
@@ -175,6 +194,18 @@ The editor displays:
     - Start time (HH:MM:SS.mmm or seconds)
     - End time (HH:MM:SS.mmm or seconds)
     - Label (predefined options or custom)
+
+- **Start at End of Segment**:
+  - Click this button to set the start point to the end of an existing segment
+  - A dialog will appear with a list of all segments
+  - Select a segment to use its end time as the new start point
+  - Useful for creating segments that start right after another segment ends
+
+- **End at Start of Segment**:
+  - Click this button to set the end point to the start of an existing segment
+  - A dialog will appear with a list of all segments
+  - Select a segment to use its start time as the new end point
+  - Useful for creating segments that end right before another segment starts
 
 **5. Navigate to Segments**
 
@@ -233,11 +264,14 @@ All keyboard shortcuts only work when the segment list is focused:
 **Top Row (Seek Controls)**:
 - `-30s`, `-10s`, `-5s`, `-1s`, `+1s`, `+5s`, `+10s`, `+30s`: Seek buttons
 - `Pause`/`Resume`: Playback control
-- `Set as Start`: Mark start point
-- `Set as End`: Mark end point
-- `Add with Marked Times`: Create segment from marked times
+- `Set as Start`: Mark start point (toggle: press again to clear)
+- `Set as End`: Mark end point (toggle: press again to clear)
+- `Create`: Create segment from marked times
+- `Start at End of`: Set start point to the end of an existing segment
+- `End at Start of`: Set end point to the start of an existing segment
 
 **Bottom Row (Main Actions)**:
+- `Jump To`: Jump to a specific time by entering it manually
 - `Add at Current Time + User Set Time`: Quick add at current position
 - `Add Manual Start and End Points`: Manual entry method
 - `Delete All`: Remove all segments
@@ -252,7 +286,7 @@ All keyboard shortcuts only work when the segment list is focused:
 4. Click "Set as Start" to mark the start position
 5. Navigate to where you want the segment to end (seek forward/backward as needed)
 6. Click "Set as End" to mark the end position
-7. Click "Add with Marked Times" to create the segment
+7. Click "Create" to create the segment
 8. Select a label from the predefined list or enter a custom label
 9. Repeat for additional segments
 10. Click "Save" when done (segments will be saved according to your save format setting)
