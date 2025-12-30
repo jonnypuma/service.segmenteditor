@@ -4,15 +4,39 @@ The segment editor can be opened in several ways while a video is playing:
 
 ## Method 1: Keyboard Shortcut (Recommended)
 
-1. Copy the `keymap.xml` file to your Kodi userdata keymaps directory:
+The addon automatically generates and updates a keymap file in your Kodi userdata directory. The keyboard shortcut key can be configured in the addon settings.
+
+1. Configure the shortcut key in addon settings (default is `E`, which becomes `CTRL+E`)
+2. The keymap file is automatically created/updated at:
    - **Windows**: `%APPDATA%\Kodi\userdata\keymaps\keymap.xml`
    - **Linux**: `~/.kodi/userdata/keymaps/keymap.xml`
    - **macOS**: `~/Library/Application Support/Kodi/userdata/keymaps/keymap.xml`
    - **Android**: `/sdcard/Android/data/org.xbmc.kodi/files/.kodi/userdata/keymaps/keymap.xml`
+3. Press **CTRL+[your configured key]** during video playback to open the editor (e.g., `CTRL+E` if you set the key to `E`)
+4. The keyboard shortcut always uses the CTRL modifier to avoid conflicts with Kodi's default keybindings
+5. The keymap includes Global, FullscreenVideo, and VideoOSD sections for maximum compatibility
 
-2. If you already have a `keymap.xml` file, merge the contents instead of overwriting.
+## Method 1b: Remote Control Key (Using Keymap Editor Addon)
 
-3. Press **E** during video playback to open the editor.
+You can also use the Keymap Editor addon to assign a key on your TV remote to launch the editor:
+
+1. Install the "Keymap Editor" addon from the Kodi repository
+2. **For FullscreenVideo mode:**
+   - Open Keymap Editor and navigate to FullscreenVideo mode
+   - Go all the way down and choose Add-ons
+   - Scroll down to Launch Segment Editor and press OK/Select button
+   - Press the key on your remote that you want to use
+3. **For VideoOSD mode (important for when OSD is open):**
+   - Navigate to VideoOSD mode in Keymap Editor
+   - Repeat the same steps: Add-ons → Launch Segment Editor → Press your remote key
+4. **For Global mode (optional, for broader coverage):**
+   - Navigate to Global mode in Keymap Editor
+   - Repeat the same steps: Add-ons → Launch Segment Editor → Press your remote key
+5. Go back to the start and save the keymap
+
+**Note:** It's recommended to map the key in both FullscreenVideo and VideoOSD sections so the editor works whether the video OSD is open or not. The Global section is optional but provides even broader coverage.
+
+This allows you to trigger the editor with a single button press on your TV remote during video playback.
 
 ## Method 2: JSON-RPC Call (May not work with service addons)
 
@@ -77,17 +101,20 @@ The service monitors for a trigger file. Create this file to open the editor:
 
 **Windows PowerShell:**
 ```powershell
-# Edit the path to match your Kodi addons directory
-$triggerFile = "C:\Users\stone\AppData\Roaming\Kodi\addons\service.segmenteditor\trigger_editor.txt"
-New-Item -Path $triggerFile -ItemType File -Force
+New-Item -Path "$env:APPDATA\Kodi\addons\service.segmenteditor\trigger_editor.txt" -ItemType File -Force
 ```
 
-Or use the provided script:
-```powershell
-.\trigger_editor.ps1
+**Linux/macOS:**
+```bash
+touch ~/.kodi/addons/service.segmenteditor/trigger_editor.txt
 ```
 
-The service will detect the file and open the editor (if a video is playing), then delete the trigger file.
+**CoreELEC/LibreELEC SSH (Recommended for Embedded Devices):**
+```bash
+touch /storage/.kodi/addons/service.segmenteditor/trigger_editor.txt
+```
+
+The background service monitors this file and will open the editor when it detects the file. The file is automatically deleted after the editor opens.
 
 ## Method 3: Context Menu (Advanced)
 

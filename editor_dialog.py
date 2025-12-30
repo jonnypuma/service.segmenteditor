@@ -22,6 +22,15 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
         self.pending_end_time = None
         self.is_paused = False
         self._explicit_click = False  # Flag to track explicit clicks vs focus changes
+        self._previous_focus = None  # Track previous focus to detect navigation source
+        
+        # Get addon icon path for notifications
+        try:
+            addon = get_addon()
+            addon_path = addon.getAddonInfo('path')
+            self.icon_path = os.path.join(addon_path, "icon.png")
+        except:
+            self.icon_path = None
         
         log(f"📦 SegmentEditorDialog initialized with {len(self.segments)} segments")
     
@@ -53,15 +62,8 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
             else:
                 # Populate list
                 self.refresh_list()
-                
-                # Set initial focus to list
-                try:
-                    self.setFocusId(5000)
-                    log_always("✅ Set initial focus to list (5000)")
-                    # Update button positions after list is set up
-                    self.update_button_positions()
-                except:
-                    log_always("⚠️ Could not set initial focus")
+                # Update button positions after list is set up
+                self.update_button_positions()
             
             # Initialize pause button - detect actual player state
             try:
@@ -75,6 +77,13 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
                 log(f"⚠️ Error initializing pause button: {e}")
                 # Default to not paused if detection fails
                 self.is_paused = False
+            
+            # Set initial focus to Pause/Resume button
+            try:
+                self.setFocusId(5018)
+                log_always("✅ Set initial focus to Pause/Resume button (5018)")
+            except:
+                log_always("⚠️ Could not set initial focus to Pause/Resume button")
             
             # Make sure all buttons are visible and enabled
             try:
@@ -409,8 +418,10 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
         if action_id == 7:  # Select
             log(f"✅ Select action, focused control: {focused}")
             if focused == 5000:
-                # List item selected - edit the segment
-                self.edit_segment()
+                # List item selected - update selected index and jump to segment start
+                self.update_button_positions()  # Ensure selected_index is up to date
+                self.jump_to_segment_start()
+                return  # Don't process further
             # For buttons, only activate on explicit Select press
             elif focused in [5009, 5010, 5011, 5012, 5013, 5014, 5015, 5016, 5017, 5018, 5019, 5020, 5002, 5004, 5005, 5006, 5007, 5021, 5022]:
                 # Set flag to indicate this is an explicit click
@@ -745,14 +756,55 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
     
     def onFocus(self, controlId):
         """Handle focus changes"""
-        log(f"🎯 Focus changed to control: {controlId}")
+        log(f"🎯 Focus changed to control: {controlId} (previous: {self._previous_focus})")
         # Reset explicit click flag when focus changes
         self._explicit_click = False
         if controlId == 5000:  # List control
             # Update selected index and button positions
             self.update_button_positions()
-        # Edit/Delete buttons are now outside the list item layout, so they should work normally
-        # No special handling needed - Kodi will handle focus correctly
+            # Auto-focus Edit button when list gets focus, but only if not coming from Edit/Delete buttons
+            # This allows navigation between segments: when you press up/down from Edit button, 
+            # it goes to list, then auto-focuses Edit for the new segment
+            if (self._previous_focus is not None and 
+                self._previous_focus not in [5021, 5022] and  # Not from Edit/Delete buttons
+                len(self.segments) > 0):
+                try:
+                    # Small delay to ensure list selection is updated
+                    import threading
+                    def focus_edit_button():
+                        import time
+                        time.sleep(0.05)  # Small delay to let list selection settle
+                        try:
+                            edit_btn = self.getControl(5021)
+                            if edit_btn and edit_btn.isVisible():
+                                self.setFocusId(5021)
+                                log(f"✅ Auto-focused Edit button (previous focus: {self._previous_focus})")
+                        except:
+                            pass
+                    threading.Thread(target=focus_edit_button, daemon=True).start()
+                except:
+                    pass
+        
+        # Update previous focus for next time
+        self._previous_focus = controlId
+    
+    def jump_to_segment_start(self):
+        """Jump playback to the start of the selected segment"""
+        if self.selected_index < 0 or self.selected_index >= len(self.segments):
+            log("⚠️ No segment selected to jump to")
+            return
+        
+        seg = self.segments[self.selected_index]
+        start_time = seg.start_seconds
+        
+        try:
+            if self.player.isPlayingVideo():
+                self.player.seekTime(start_time)
+                log(f"⏩ Jumped to segment start: {start_time:.2f}s")
+            else:
+                log("⚠️ Cannot jump - video not playing")
+        except Exception as e:
+            log(f"❌ Error jumping to segment start: {e}")
     
     def seek_relative(self, seconds):
         """Seek forward or backward by specified seconds"""
@@ -816,6 +868,7 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
                 xbmcgui.Dialog().notification(
                     "Segment Editor",
                     f"Start marked: {seconds_to_hms(self.pending_start_time)}",
+                    icon=self.icon_path,
                     time=2000
                 )
         except Exception as e:
@@ -843,6 +896,7 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
                 xbmcgui.Dialog().notification(
                     "Segment Editor",
                     f"End marked: {seconds_to_hms(self.pending_end_time)}",
+                    icon=self.icon_path,
                     time=2000
                 )
         except Exception as e:
@@ -930,6 +984,7 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
         xbmcgui.Dialog().notification(
             "Segment Editor",
             "Segment added successfully",
+            icon=self.icon_path,
             time=2000
         )
     
@@ -1022,6 +1077,7 @@ class SegmentEditorDialog(xbmcgui.WindowXMLDialog):
                 xbmcgui.Dialog().notification(
                     "Segment Editor",
                     msg,
+                    icon=self.icon_path,
                     time=2000
                 )
             else:
