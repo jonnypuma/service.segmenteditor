@@ -322,7 +322,22 @@ class PlaybackMonitor(xbmc.Monitor):
     
     def onNotification(self, sender, method, data):
         """Handle notifications from other addons or scripts"""
-        log_always(f"🔔 Notification received: sender={sender}, method={method}, data={data}")
+        # Filter out common noise notifications that aren't relevant to the segment editor
+        # Only log notifications we actually care about
+        ignored_methods = [
+            "AudioLibrary.OnUpdate",
+            "VideoLibrary.OnUpdate",
+            "GUI.OnScreensaverActivated",
+            "GUI.OnScreensaverDeactivated",
+            "VideoLibrary.OnScanStarted",
+            "VideoLibrary.OnScanFinished",
+            "AudioLibrary.OnScanStarted",
+            "AudioLibrary.OnScanFinished",
+        ]
+        
+        if method not in ignored_methods:
+            log(f"🔔 Notification received: sender={sender}, method={method}, data={data}")
+        
         if method == "Other.open_segment_editor" or "open_segment_editor" in str(data).lower():
             log_always("🔔 Open editor notification detected")
             open_segment_editor()

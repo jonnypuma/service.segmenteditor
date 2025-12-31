@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+
+### Bug Fixes
+- Fixed log spam: Filtered out noisy notifications (AudioLibrary.OnUpdate, VideoLibrary.OnUpdate, GUI events, etc.) to prevent hundreds of log entries
+
 ## 1.1.0
 
 ### New Features
