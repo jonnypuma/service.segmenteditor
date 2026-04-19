@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.2
+
+### Bug Fixes
+- Fixed EDL save: Action codes now follow the segment label and **Action Mapping** setting when the label is mapped (e.g. Intro, Credits). Previously, a value loaded from the file (such as Kodi’s internal type `2`) was kept even after changing the label in the editor, so the `.edl` third column did not match Skippy-compatible types
+
 ## 1.1.1
 
 ### Bug Fixes

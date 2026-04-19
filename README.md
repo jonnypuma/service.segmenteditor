@@ -35,8 +35,18 @@ A Kodi service addon that allows you to edit EDL and chapter.xml segment files w
 
 ## Installation
 
-1. Copy the `service.segmenteditor` folder to your Kodi addons directory
-2. Restart Kodi or install via Add-on Manager
+1. Copy the `service.segmenteditor` folder to your Kodi addons directory and restart Kodi
+2. Or install the Skippy repo and install Segment Editor addon directly from the repo
+
+## Compatibility
+
+Tested on **Kodi Omega 21.2** and **Kodi v22 Piers Alpha 2** across:
+
+| Platform       			    | Status     |
+|---------------------------|------------|
+| Android (Nvidia Shield) 	 | ✅ Tested |
+| Linux (CoreELEC)  		    | ✅ Tested |
+| Windows 11       			 | ✅ Tested |
 
 ## Usage
 

@@ -506,15 +506,15 @@ def save_edl(video_path, segments):
     try:
         lines = []
         for seg in segments:
-            # Determine action type: use existing, or lookup from label, or default to 4
-            action = seg.action_type if seg.action_type else 4
-            if not seg.action_type:
-                # Try to find action type from label using reverse mapping
-                seg_label = (seg.raw_label if hasattr(seg, 'raw_label') else seg.segment_type_label).lower()
-                if seg_label in label_to_action:
-                    action = label_to_action[seg_label]
-                else:
-                    action = 4  # Default action type
+            # Prefer label→action from settings when the segment label is mapped, so UI label
+            # edits (Intro, Credits, …) persist to EDL even if the file had a stale action code.
+            seg_label = seg.segment_type_label
+            if seg_label in label_to_action:
+                action = label_to_action[seg_label]
+            elif seg.action_type is not None:
+                action = seg.action_type
+            else:
+                action = 4
             lines.append(f"{seg.start_seconds:.3f}\t{seg.end_seconds:.3f}\t{action}")
         
         content = "\n".join(lines) + "\n"
