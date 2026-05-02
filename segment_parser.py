@@ -1,222 +1,218 @@
 import os
+import re
+import stat
+import subprocess
 import time
 import xml.etree.ElementTree as ET
 import xbmcvfs
-import xbmcaddon
 import unicodedata
 
 from utils import get_addon, log
 
-def remap_nfs_path_for_write(path):
+
+def _apply_permissions(path):
+    """Additively grant world read/write on a local file, if the user enabled it.
+
+    - Skips network VFS paths (nfs://, smb://...) since permissions are managed
+      server-side.
+    - Adds the 0o066 bits to whatever the file already has, rather than
+      stomping over it with 0o666 (which would be wrong for directories and
+      often inappropriate on containerised Kodi installs).
+    - Silently ignores failures; chmod is best-effort.
     """
-    Attempt to remap NFS paths for write operations.
-    Kodi's NFS client may strip subdirectories from mount paths during writes.
-    This function tries different path variations to find one that works.
-    
-    Returns a list of path variations to try, starting with the original.
+    try:
+        addon = get_addon()
+        if not addon.getSettingBool("set_file_permissions"):
+            return
+    except Exception as setting_err:
+        log(f"Could not read permission setting: {setting_err}")
+        return
+
+    if path.startswith("nfs://") or path.startswith("smb://") or "://" in path:
+        log(f"Skipping chmod for non-local path: {path}")
+        return
+
+    try:
+        current = stat.S_IMODE(os.stat(path).st_mode)
+        new_mode = current | 0o066
+        if new_mode != current:
+            os.chmod(path, new_mode)
+            log(f"Adjusted file permissions (+rw for group/other): {path}")
+    except Exception as chmod_err:
+        log(f"Could not set file permissions ({chmod_err}) for {path}")
+
+
+def remap_nfs_path_for_write(path):
+    """Return a list of NFS path variations to try when writing.
+
+    Kodi's NFS client sometimes strips subdirectories from mount paths on
+    write; trying a few variants gives us a chance to recover automatically.
     """
     if not path.startswith('nfs://'):
-        return [path]  # Not an NFS path, return as-is
-    
-    variations = [path]  # Always try original first
-    
-    # Try removing the first subdirectory after the server/path
-    # e.g., nfs://server/Media/Kodi/file -> nfs://server/Kodi/file
+        return [path]
+
+    variations = [path]
     try:
-        parts = path.split('/', 4)  # Split into: ['nfs:', '', 'server', 'Media', 'Kodi/file']
+        parts = path.split('/', 4)
         if len(parts) >= 5:
-            # Reconstruct without the first subdirectory
             remapped = f"{parts[0]}//{parts[2]}/{parts[4]}"
             variations.append(remapped)
-            log(f"🔄 NFS path remap variation: {remapped}")
-    except:
+            log(f"NFS path remap variation: {remapped}")
+    except Exception:
         pass
-    
-    # Try removing all subdirectories, going to root
-    # e.g., nfs://server/Media/Kodi/file -> nfs://server/file
+
     try:
         parts = path.split('/')
         if len(parts) >= 4:
-            # Keep protocol and server, use just filename
             filename = parts[-1]
-            server_part = '/'.join(parts[:3])  # nfs://server
+            server_part = '/'.join(parts[:3])
             root_path = f"{server_part}/{filename}"
             if root_path not in variations:
                 variations.append(root_path)
-                log(f"🔄 NFS path remap variation (root): {root_path}")
-    except:
+                log(f"NFS path remap variation (root): {root_path}")
+    except Exception:
         pass
-    
+
     return variations
 
+
 def safe_file_write(path, content, is_bytes=False):
-    """
-    Safely write a file with NFS path remapping fallback.
-    Tries multiple path variations if the initial write fails.
-    
-    Based on Kodi developer recommendations:
-    - Use xbmcvfs.File() for VFS protocol handling
-    - Check write() return value AND file existence as fallback
-    - Don't manually strip paths; let Kodi's VFS handle translation
-    
-    Args:
-        path: File path to write to
-        content: Content to write (string or bytes)
-        is_bytes: If True, content is already bytes; otherwise encode as UTF-8
-    
-    Returns:
-        tuple: (success: bool, bytes_written: int or None)
+    """Safely write a file using Kodi's VFS, falling back through NFS remaps.
+
+    Returns ``(success, bytes_written_or_None)``.
     """
     if not is_bytes and isinstance(content, str):
         content_bytes = content.encode('utf-8')
     else:
         content_bytes = content
-    
-    # Get path variations to try (only for NFS)
+
     path_variations = remap_nfs_path_for_write(path)
-    
     last_error = None
+
     for attempt_path in path_variations:
         try:
-            log(f"📝 Attempting to write to: {attempt_path}")
-            
-            # For NFS, delete the file first to ensure clean overwrite
-            # Kodi's NFS client may not properly truncate files on overwrite
+            log(f"Attempting to write to: {attempt_path}")
+
+            # Kodi's NFS client may not truncate on overwrite; delete first.
             if attempt_path.startswith('nfs://') and xbmcvfs.exists(attempt_path):
                 try:
-                    log(f"🗑️ Deleting existing NFS file before write: {attempt_path}")
+                    log(f"Deleting existing NFS file before write: {attempt_path}")
                     xbmcvfs.delete(attempt_path)
-                    # Small delay to ensure deletion completes on NFS
                     time.sleep(0.1)
                 except Exception as del_err:
-                    log(f"⚠️ Could not delete existing file (may not exist): {del_err}")
-            
+                    log(f"Could not delete existing file (may not exist): {del_err}")
+
             f = xbmcvfs.File(attempt_path, 'w')
             if not f:
-                log(f"⚠️ Failed to create file object for: {attempt_path}")
+                log(f"Failed to create file object for: {attempt_path}")
                 last_error = "Failed to create file object"
                 continue
-            
-            # Write the content - write() may return bytes written, True, or None/False
+
             result = f.write(content_bytes)
             f.close()
-            
-            # Check if write was successful
-            # Method 1: Check return value (bytes written or True)
-            if result:
-                # Verify file exists as fallback check (as recommended by Kodi dev)
+
+            # Kodi VFS may return bytes-written, True, None or False. Always
+            # verify with xbmcvfs.exists() as a fallback check.
+            if result or xbmcvfs.exists(attempt_path):
                 if xbmcvfs.exists(attempt_path):
-                    # Try to set file permissions if enabled in settings
-                    # Only works for local paths, not network VFS (nfs://, smb://)
-                    try:
-                        addon = get_addon()
-                        set_permissions = addon.getSettingBool("set_file_permissions")
-                        if set_permissions:
-                            if not (attempt_path.startswith('nfs://') or attempt_path.startswith('smb://')):
-                                try:
-                                    # Set permissions to 666 (rw-rw-rw-) for maximum compatibility
-                                    os.chmod(attempt_path, 0o666)
-                                    log(f"🔐 Set file permissions to 666 (rw-rw-rw-) for: {attempt_path}")
-                                except Exception as chmod_err:
-                                    # chmod may fail on some filesystems or network mounts
-                                    log(f"⚠️ Could not set file permissions (may be network mount): {chmod_err}")
-                            else:
-                                log(f"ℹ️ Skipping chmod for network path (permissions controlled by server): {attempt_path}")
-                    except Exception as setting_err:
-                        # If setting read fails, just continue (permission setting is optional)
-                        log(f"⚠️ Could not read permission setting: {setting_err}")
-                    
+                    _apply_permissions(attempt_path)
                     if attempt_path != path:
-                        log(f"✅ Write succeeded with remapped path: {attempt_path} (original: {path})")
+                        log(f"Write succeeded with remapped path: {attempt_path} (original: {path})")
                     else:
-                        log(f"✅ Write succeeded with original path: {path}")
-                    return True, result if isinstance(result, int) else len(content_bytes)
-                else:
-                    log(f"⚠️ Write returned success but file doesn't exist: {attempt_path}")
-                    # Continue to next variation
-            else:
-                # Method 2: write() returned None/False, but check if file exists anyway
-                # (Sometimes Kodi's VFS succeeds but returns None)
-                if xbmcvfs.exists(attempt_path):
-                    # Try to set file permissions if enabled in settings
-                    try:
-                        addon = get_addon()
-                        set_permissions = addon.getSettingBool("set_file_permissions")
-                        if set_permissions:
-                            if not (attempt_path.startswith('nfs://') or attempt_path.startswith('smb://')):
-                                try:
-                                    os.chmod(attempt_path, 0o666)
-                                    log(f"🔐 Set file permissions to 666 (rw-rw-rw-) for: {attempt_path}")
-                                except Exception as chmod_err:
-                                    log(f"⚠️ Could not set file permissions (may be network mount): {chmod_err}")
-                            else:
-                                log(f"ℹ️ Skipping chmod for network path (permissions controlled by server): {attempt_path}")
-                    except Exception as setting_err:
-                        log(f"⚠️ Could not read permission setting: {setting_err}")
-                    
-                    log(f"✅ Write succeeded (file exists) despite None return: {attempt_path}")
-                    if attempt_path != path:
-                        log(f"✅ Using remapped path: {attempt_path} (original: {path})")
-                    return True, len(content_bytes)
-                else:
-                    log(f"⚠️ Write returned no bytes and file doesn't exist: {attempt_path}")
-                    # Check if this is an NFS error by examining the path
-                    if attempt_path.startswith('nfs://') and attempt_path != path_variations[-1]:
-                        log(f"🔄 NFS write failed, trying next path variation...")
-                        continue
-            
+                        log(f"Write succeeded: {path}")
+                    written = result if isinstance(result, int) else len(content_bytes)
+                    return True, written
+                log(f"Write returned {result!r} but file doesn't exist: {attempt_path}")
+                if attempt_path.startswith('nfs://') and attempt_path != path_variations[-1]:
+                    log("NFS write apparently failed, trying next path variation")
+                    continue
+
         except Exception as e:
             last_error = e
             error_msg = str(e)
-            log(f"⚠️ Write exception for {attempt_path}: {error_msg}")
-            
-            # If this is an NFS-specific error and we have more variations, continue
+            log(f"Write exception for {attempt_path}: {error_msg}")
             if ("NFS" in error_msg or "ACCESS denied" in error_msg or "NFS3ERR" in error_msg):
-                if attempt_path != path_variations[-1]:  # Not the last variation
-                    log(f"🔄 NFS error detected, trying next path variation...")
+                if attempt_path != path_variations[-1]:
+                    log("NFS error detected, trying next path variation")
                     continue
-            
-            # For non-NFS errors or last variation, we'll break after logging
             if attempt_path == path_variations[-1]:
                 break
-    
-    # All attempts failed
+
     if last_error:
-        log(f"❌ All write attempts failed. Last error: {last_error}")
+        log(f"All write attempts failed. Last error: {last_error}")
     else:
-        log(f"❌ All write attempts failed. Write() returned None/False for all paths.")
+        log("All write attempts failed. Write() returned no bytes for all paths.")
         if path.startswith('nfs://'):
-            log(f"⚠️ NFS write issue detected. Possible causes:")
-            log(f"   1. NFS server permissions (check /etc/exports for 'rw' not 'ro')")
-            log(f"   2. NFS server needs 'insecure' flag for non-privileged ports")
-            log(f"   3. Path normalization issue in Kodi's NFS client")
+            log("NFS write issue detected. Check: (1) server 'rw' export, "
+                "(2) 'insecure' flag, (3) path normalization in Kodi NFS client.")
     return False, None
 
+
 def normalize_label(text):
-    """Normalize and lowercase labels for consistent matching"""
+    """Normalize and lowercase labels for consistent matching."""
     return unicodedata.normalize("NFKC", text or "").strip().lower()
 
+
+_NUMERIC_TIME_RE = re.compile(r"^\d+(?:\.\d+)?$")
+
+
 def hms_to_seconds(hms):
-    """Convert HH:MM:SS.mmm format to seconds"""
-    parts = hms.strip().split(":")
+    """Convert HH:MM:SS.mmm, MM:SS, or plain seconds to a non-negative float.
+
+    Raises ValueError on negative, empty, or otherwise malformed input.
+    """
+    if hms is None:
+        raise ValueError("Time input is empty")
+
+    text = str(hms).strip()
+    if not text:
+        raise ValueError("Time input is empty")
+    if text.startswith("-"):
+        raise ValueError(f"Time cannot be negative: {hms!r}")
+    if text.startswith("+"):
+        text = text[1:].strip()
+        if not text:
+            raise ValueError("Time input is empty")
+
+    parts = text.split(":")
+    if len(parts) > 3:
+        raise ValueError(f"Invalid time format: {hms!r}")
+
+    # Each part except possibly the last must be a plain integer, and the last
+    # component may be a decimal number.
+    for segment in parts[:-1]:
+        if not segment or not segment.isdigit():
+            raise ValueError(f"Invalid time component {segment!r} in {hms!r}")
+    last = parts[-1]
+    if not _NUMERIC_TIME_RE.match(last):
+        raise ValueError(f"Invalid seconds component {last!r} in {hms!r}")
+
     if len(parts) == 3:
         h, m, s = parts
-        return int(h) * 3600 + int(m) * 60 + float(s)
+        total = int(h) * 3600 + int(m) * 60 + float(s)
     elif len(parts) == 2:
         m, s = parts
-        return int(m) * 60 + float(s)
+        total = int(m) * 60 + float(s)
     else:
-        return float(parts[0])
+        total = float(parts[0])
+
+    if total < 0:
+        raise ValueError(f"Time cannot be negative: {hms!r}")
+    return total
+
 
 def seconds_to_hms(seconds):
-    """Convert seconds to HH:MM:SS.mmm format"""
+    """Convert seconds to HH:MM:SS.mmm format."""
+    if seconds < 0:
+        seconds = 0
     h = int(seconds // 3600)
     m = int((seconds % 3600) // 60)
     s = seconds % 60
     return f"{h:02d}:{m:02d}:{s:06.3f}"
 
+
 def indent_xml(elem, level=0, indent="  "):
-    """Manually indent XML element tree (Python 3.8 compatible)"""
+    """Manually indent an ElementTree (Python 3.8 compatible)."""
     i = "\n" + level * indent
     if len(elem):
         if not elem.text or not elem.text.strip():
@@ -224,41 +220,50 @@ def indent_xml(elem, level=0, indent="  "):
         if not elem.tail or not elem.tail.strip():
             elem.tail = i
         for child in elem:
-            indent_xml(child, level+1, indent)
+            indent_xml(child, level + 1, indent)
         if not child.tail or not child.tail.strip():
             child.tail = i
     else:
         if level and (not elem.tail or not elem.tail.strip()):
             elem.tail = i
 
+
 class SegmentItem:
     def __init__(self, start_seconds, end_seconds, label="segment", source="edl", action_type=None):
-        if end_seconds < start_seconds:
-            raise ValueError(f"Segment end time ({end_seconds}) must be after start time ({start_seconds})")
-        
+        start_seconds = float(start_seconds)
+        end_seconds = float(end_seconds)
+
+        if start_seconds < 0 or end_seconds < 0:
+            raise ValueError(
+                f"Segment times must be non-negative (got start={start_seconds}, end={end_seconds})"
+            )
+        if end_seconds <= start_seconds:
+            raise ValueError(
+                f"Segment end time ({end_seconds}) must be strictly after start time ({start_seconds})"
+            )
+
         self.start_seconds = start_seconds
         self.end_seconds = end_seconds
         self.source = source
         self.segment_type_label = normalize_label(label)
         self.action_type = action_type
-        self.raw_label = label  # Keep original label for display
-    
+        self.raw_label = label
+
     def is_active(self, current_time):
-        """Check if current time falls within segment bounds"""
         return self.start_seconds <= current_time <= self.end_seconds
-    
+
     def get_duration(self):
-        """Return duration of the segment"""
         return self.end_seconds - self.start_seconds
-    
+
     def __str__(self):
         return f"{self.raw_label} [{self.start_seconds:.2f}-{self.end_seconds:.2f}]"
 
+
 def safe_file_read(*paths):
-    """Safely read a file, trying multiple paths"""
+    """Read the first readable path. Returns content or None."""
     for path in paths:
         if path:
-            log(f"📂 Attempting to read: {path}")
+            log(f"Attempting to read: {path}")
             try:
                 f = xbmcvfs.File(path)
                 content = f.read()
@@ -266,82 +271,113 @@ def safe_file_read(*paths):
                 if isinstance(content, bytes):
                     content = content.decode('utf-8', errors='replace')
                 if content:
-                    log(f"✅ Successfully read file: {path}")
+                    log(f"Successfully read file: {path}")
                     return content
             except Exception as e:
-                log(f"❌ Failed to read {path}: {e}")
+                log(f"Failed to read {path}: {e}")
     return None
 
-def parse_chapters(video_path):
-    """Parse chapter.xml file and return list of SegmentItem objects"""
-    base = os.path.splitext(video_path)[0]
-    video_dir = os.path.dirname(video_path)
-    suffixes = ["-chapters.xml", "_chapters.xml", "-chapter.xml", "_chapter.xml"]
-    
-    paths_to_try = [f"{base}{s}" for s in suffixes]
-    # Also check for "chapters.xml" in the same directory
-    if video_dir:
-        paths_to_try.append(os.path.join(video_dir, "chapters.xml"))
-    
-    log(f"🔍 Attempting chapter XML paths: {paths_to_try}")
-    xml_data = safe_file_read(*paths_to_try)
-    if not xml_data:
-        log("🚫 No chapter XML file found")
-        return None
-    
+
+def _segments_from_chapter_xml(xml_data, source_label):
+    """Parse Matroska-style chapter XML into SegmentItems; empty list if none."""
     try:
         root = ET.fromstring(xml_data)
-        result = []
-        for atom in root.findall(".//ChapterAtom"):
-            raw_label = atom.findtext(".//ChapterDisplay/ChapterString", default="")
-            label = raw_label.strip() if raw_label else "segment"
-            start = atom.findtext("ChapterTimeStart")
-            end = atom.findtext("ChapterTimeEnd")
-            if start and end:
+    except Exception as e:
+        log(f"XML parse failed ({source_label}): {e}")
+        return []
+
+    result = []
+    for atom in root.findall(".//ChapterAtom"):
+        raw_label = atom.findtext(".//ChapterDisplay/ChapterString", default="")
+        label = raw_label.strip() if raw_label else "segment"
+        start = atom.findtext("ChapterTimeStart")
+        end = atom.findtext("ChapterTimeEnd")
+        if start and end:
+            try:
                 result.append(SegmentItem(
                     hms_to_seconds(start),
                     hms_to_seconds(end),
                     label,
                     source="xml"
                 ))
-                log(f"📘 Parsed XML segment: {start} → {end} | label='{label}'")
-        
-        if result:
-            log(f"✅ Total segments parsed from XML: {len(result)}")
-        return result if result else None
-    except Exception as e:
-        log(f"❌ XML parse failed: {e}")
+                log(f"Parsed XML segment: {start} -> {end} | label='{label}' ({source_label})")
+            except ValueError as ve:
+                log(f"Skipping invalid chapter atom ({source_label}): {ve}")
+    return result
+
+
+def parse_chapters(video_path):
+    """Parse chapter XML file and return list of SegmentItem objects.
+
+    Tries each known sidecar path in order. If the first file with content
+    yields no ChapterAtom segments (placeholder or different schema), later
+    paths are still tried so XML is preferred over falling back to EDL.
+    """
+    base = os.path.splitext(video_path)[0]
+    video_dir = os.path.dirname(video_path)
+    suffixes = ["-chapters.xml", "_chapters.xml", "-chapter.xml", "_chapter.xml"]
+
+    paths_to_try = [f"{base}{s}" for s in suffixes]
+    if video_dir:
+        paths_to_try.append(os.path.join(video_dir, "chapters.xml"))
+
+    log(f"Attempting chapter XML paths: {paths_to_try}")
+
+    for path in paths_to_try:
+        if not path:
+            continue
+        try:
+            f = xbmcvfs.File(path)
+            data = f.read()
+            f.close()
+            if isinstance(data, bytes):
+                data = data.decode("utf-8", errors="replace")
+        except Exception as e:
+            log(f"Failed to read {path}: {e}")
+            continue
+
+        if not data or not data.strip():
+            continue
+        log(f"Successfully read file: {path}")
+
+        segments = _segments_from_chapter_xml(data, path)
+        if segments:
+            log(f"Total segments parsed from XML: {len(segments)} (using {path})")
+            return segments
+        log(f"No usable ChapterAtom entries in {path}, trying next chapter path if any")
+
+    log("No chapter XML with segments found")
     return None
 
+
 def parse_edl(video_path):
-    """Parse .edl file and return list of SegmentItem objects"""
+    """Parse .edl file and return list of SegmentItem objects."""
     base = video_path.rsplit('.', 1)[0]
     paths_to_try = [f"{base}.edl"]
-    
-    log(f"🔍 Attempting EDL paths: {paths_to_try}")
+
+    log(f"Attempting EDL paths: {paths_to_try}")
     edl_data = safe_file_read(*paths_to_try)
     if not edl_data:
-        log("🚫 No EDL file found")
+        log("No EDL file found")
         return []
-    
-    log(f"🧾 Raw EDL content:\n{edl_data}")
-    
+
+    log(f"Raw EDL content:\n{edl_data}")
+
     segments = []
     try:
         for line in edl_data.splitlines():
             line = line.strip()
             if not line or line.startswith('#'):
                 continue
-            
+
             parts = line.split()
             if len(parts) >= 2:
                 try:
                     s = float(parts[0])
                     e = float(parts[1])
                     action = int(parts[2]) if len(parts) > 2 else 4
-                    label = "segment"  # Default label
-                    
-                    # Try to get label from mapping if available
+                    label = "segment"
+
                     try:
                         addon = get_addon()
                         mapping = {}
@@ -352,48 +388,153 @@ def parse_edl(video_path):
                                 try:
                                     act, lbl = pair.split(":", 1)
                                     mapping[int(act.strip())] = lbl.strip()
-                                except:
+                                except Exception:
                                     pass
                         label = mapping.get(action, "segment")
-                    except:
+                    except Exception:
                         pass
-                    
+
                     segments.append(SegmentItem(s, e, label, source="edl", action_type=action))
-                    log(f"📗 Parsed EDL line: {s} → {e} | action={action} | label='{label}'")
+                    log(f"Parsed EDL line: {s} -> {e} | action={action} | label='{label}'")
                 except (ValueError, IndexError) as e:
-                    log(f"⚠️ Skipped invalid EDL line: {line} ({e})")
+                    log(f"Skipped invalid EDL line: {line} ({e})")
     except Exception as e:
-        log(f"❌ EDL parse failed: {e}")
-    
-    log(f"✅ Total segments parsed from EDL: {len(segments)}")
+        log(f"EDL parse failed: {e}")
+
+    log(f"Total segments parsed from EDL: {len(segments)}")
     return segments
 
+
+def _mkvextract_chapters_xml(video_path, timeout=3):
+    """Try to extract embedded Matroska chapters as XML using mkvextract.
+
+    Returns the XML string if successful, otherwise None. Requires
+    ``mkvextract`` to be on PATH; silently returns None if the tool is
+    missing (which is the common case on Kodi boxes).
+    """
+    # Only supports local paths; resolve through Kodi's VFS translator.
+    try:
+        local_path = xbmcvfs.translatePath(video_path)
+    except Exception:
+        local_path = video_path
+
+    if "://" in local_path:
+        # Still a remote URI after translation; mkvextract can't read it.
+        return None
+    if not os.path.isfile(local_path):
+        return None
+
+    try:
+        completed = subprocess.run(
+            ["mkvextract", local_path, "chapters", "-"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as err:
+        log(f"mkvextract not available or failed ({err})")
+        return None
+
+    if completed.returncode != 0:
+        log(f"mkvextract exit {completed.returncode}: {completed.stderr.decode('utf-8', errors='replace')[:200]}")
+        return None
+
+    data = completed.stdout.decode("utf-8", errors="replace").strip()
+    if not data or "<Chapters" not in data:
+        return None
+    return data
+
+
+def parse_embedded_chapters(video_path, timeout=3):
+    """Return a list of SegmentItem from chapters embedded in the video container.
+
+    Supports Matroska/WebM via ``mkvextract`` if available. Returns None if the
+    video has no embedded chapters or the tool is unavailable.
+    """
+    xml_data = _mkvextract_chapters_xml(video_path, timeout=timeout)
+    if not xml_data:
+        return None
+
+    try:
+        root = ET.fromstring(xml_data)
+    except Exception as e:
+        log(f"Embedded chapter XML parse failed: {e}")
+        return None
+
+    raw_chapters = []
+    for atom in root.findall(".//ChapterAtom"):
+        raw_label = atom.findtext(".//ChapterDisplay/ChapterString", default="")
+        label = raw_label.strip() if raw_label else "chapter"
+        start = atom.findtext("ChapterTimeStart")
+        end = atom.findtext("ChapterTimeEnd")
+        if not start:
+            continue
+        try:
+            start_s = hms_to_seconds(start)
+        except ValueError:
+            continue
+        end_s = None
+        if end:
+            try:
+                end_s = hms_to_seconds(end)
+            except ValueError:
+                # Invalid explicit end: skip the chapter rather than guessing.
+                continue
+        raw_chapters.append({
+            "start": start_s,
+            "end": end_s,
+            "label": label,
+            "missing_end": end_s is None,
+        })
+
+    raw_chapters.sort(key=lambda item: item["start"])
+
+    result = []
+    for i, item in enumerate(raw_chapters):
+        start_s = item["start"]
+        end_s = item["end"]
+        if item["missing_end"]:
+            # Matroska allows chapters without an explicit end. Fill those from
+            # the next chapter start; keep explicit one-second chapters intact.
+            if i + 1 < len(raw_chapters) and raw_chapters[i + 1]["start"] > start_s:
+                end_s = raw_chapters[i + 1]["start"]
+            else:
+                end_s = start_s + 1
+        try:
+            result.append(SegmentItem(start_s, end_s, item["label"], source="xml"))
+        except ValueError:
+            log(f"Skipping invalid embedded chapter at {start_s}: end={end_s}")
+            continue
+
+    return result if result else None
+
+
+def segments_chronological(segments):
+    """Return segments sorted by start time, then end time (stable sidecar/UI order)."""
+    if not segments:
+        return segments
+    return sorted(segments, key=lambda s: (s.start_seconds, s.end_seconds))
+
+
 def save_chapters(video_path, segments):
-    """Save segments to chapter.xml file"""
-    # Handle path properly - remove extension
+    """Save segments to chapter.xml file."""
     if '.' in video_path:
         base = video_path.rsplit('.', 1)[0]
     else:
         base = video_path
-    
-    # Use the first suffix format found, or default to -chapters.xml
+
     suffixes = ["-chapters.xml", "_chapters.xml"]
     output_path = None
-    
-    # Check which file exists
     for suffix in suffixes:
         path = f"{base}{suffix}"
         if xbmcvfs.exists(path):
             output_path = path
             break
-    
-    # If no file exists, create new one with default suffix
     if not output_path:
         output_path = f"{base}{suffixes[0]}"
-    
-    log(f"💾 Saving {len(segments)} segments to: {output_path}")
-    
-    # Get action mapping from settings
+
+    log(f"Saving {len(segments)} segments to: {output_path}")
+
     action_mapping = {}
     try:
         addon = get_addon()
@@ -404,90 +545,69 @@ def save_chapters(video_path, segments):
                 try:
                     action_type, label = pair.split(":", 1)
                     action_mapping[int(action_type.strip())] = label.strip()
-                except:
+                except Exception:
                     pass
-    except:
+    except Exception:
         pass
-    
-    # Create XML structure
+
     root = ET.Element("Chapters")
     edition = ET.SubElement(root, "EditionEntry")
-    
+
     for seg in segments:
         atom = ET.SubElement(edition, "ChapterAtom")
         ET.SubElement(atom, "ChapterTimeStart").text = seconds_to_hms(seg.start_seconds)
         ET.SubElement(atom, "ChapterTimeEnd").text = seconds_to_hms(seg.end_seconds)
-        
+
         display = ET.SubElement(atom, "ChapterDisplay")
-        # Use label from action mapping if available, otherwise use segment label
         if seg.action_type and seg.action_type in action_mapping:
             label = action_mapping[seg.action_type]
         else:
             label = seg.raw_label if hasattr(seg, 'raw_label') else seg.segment_type_label
         ET.SubElement(display, "ChapterString").text = label
-    
-    # Write to file
+
     try:
-        # Ensure directory exists
         try:
             dir_path = '/'.join(output_path.split('/')[:-1])
             if dir_path and not xbmcvfs.exists(dir_path):
-                log(f"📁 Creating directory: {dir_path}")
+                log(f"Creating directory: {dir_path}")
                 xbmcvfs.mkdirs(dir_path)
         except Exception as dir_err:
-            log(f"⚠️ Could not ensure directory exists: {dir_err}")
-        
-        # Manually indent XML (Python 3.8 compatible - ET.indent() requires Python 3.9+)
+            log(f"Could not ensure directory exists: {dir_err}")
+
         indent_xml(root, indent="  ")
         xml_str = ET.tostring(root, encoding='unicode')
-        
-        # Add XML declaration
         xml_str = '<?xml version="1.0" encoding="UTF-8"?>\n' + xml_str
-        
-        log(f"📝 Writing XML content to: {output_path}")
-        log(f"📝 XML content length: {len(xml_str)} bytes")
-        
-        # Use safe_file_write with NFS path remapping fallback
+
+        log(f"Writing XML content to: {output_path} ({len(xml_str)} bytes)")
         success, bytes_written = safe_file_write(output_path, xml_str, is_bytes=False)
-        
+
         if success:
-            log(f"✅ Successfully saved chapter XML to: {output_path} ({bytes_written} bytes written)")
+            log(f"Successfully saved chapter XML to: {output_path} ({bytes_written} bytes)")
             return True
-        else:
-            log(f"❌ Failed to write chapter XML to: {output_path}")
-            error_msg = "NFS path normalization issue or write permission denied"
-            if "NFS" in str(output_path):
-                log(f"⚠️ NFS write error detected. Tried multiple path variations.")
-                log(f"⚠️ Solutions:")
-                log(f"   1. Mount NFS share at OS level and add as local source in Kodi")
-                log(f"   2. Use SMB instead of NFS if possible")
-                log(f"   3. Check NFS server export settings (add 'insecure' option)")
-            return False
+        log(f"Failed to write chapter XML to: {output_path}")
+        return False
     except Exception as e:
-        log(f"❌ Failed to save chapter XML: {e}")
+        log(f"Failed to save chapter XML: {e}")
         import traceback
         log(f"Traceback: {traceback.format_exc()}")
         return False
 
+
 def save_edl(video_path, segments):
-    """Save segments to .edl file"""
-    # Handle path properly - remove extension
+    """Save segments to .edl file."""
     if '.' in video_path:
         base = video_path.rsplit('.', 1)[0]
     else:
         base = video_path
     output_path = f"{base}.edl"
-    
-    # Check if EDL file already exists - if so, use that exact path format
-    # This ensures we use the path format that Kodi recognizes for writes
+
     if xbmcvfs.exists(output_path):
-        log(f"📂 Existing EDL file found, using its path format: {output_path}")
+        log(f"Existing EDL file found, using its path format: {output_path}")
     else:
-        log(f"📂 EDL file does not exist, will create: {output_path}")
-    
-    log(f"💾 Saving {len(segments)} segments to: {output_path}")
-    
-    # Get action mapping from settings to reverse lookup label -> action_type
+        log(f"EDL file does not exist, will create: {output_path}")
+
+    log(f"Saving {len(segments)} segments to: {output_path}")
+
     label_to_action = {}
     try:
         addon = get_addon()
@@ -498,16 +618,14 @@ def save_edl(video_path, segments):
                 try:
                     action_type, label = pair.split(":", 1)
                     label_to_action[label.strip().lower()] = int(action_type.strip())
-                except:
+                except Exception:
                     pass
-    except:
+    except Exception:
         pass
-    
+
     try:
         lines = []
         for seg in segments:
-            # Prefer label→action from settings when the segment label is mapped, so UI label
-            # edits (Intro, Credits, …) persist to EDL even if the file had a stale action code.
             seg_label = seg.segment_type_label
             if seg_label in label_to_action:
                 action = label_to_action[seg_label]
@@ -516,40 +634,142 @@ def save_edl(video_path, segments):
             else:
                 action = 4
             lines.append(f"{seg.start_seconds:.3f}\t{seg.end_seconds:.3f}\t{action}")
-        
+
         content = "\n".join(lines) + "\n"
-        
-        # Ensure directory exists
+
         try:
             dir_path = '/'.join(output_path.split('/')[:-1])
             if dir_path and not xbmcvfs.exists(dir_path):
-                log(f"📁 Creating directory: {dir_path}")
+                log(f"Creating directory: {dir_path}")
                 xbmcvfs.mkdirs(dir_path)
         except Exception as dir_err:
-            log(f"⚠️ Could not ensure directory exists: {dir_err}")
-        
-        log(f"📝 Writing EDL content to: {output_path}")
-        log(f"📝 EDL content length: {len(content)} bytes")
-        log(f"📝 EDL content preview: {content[:100]}...")
-        
-        # Use safe_file_write with NFS path remapping fallback
+            log(f"Could not ensure directory exists: {dir_err}")
+
+        log(f"Writing EDL content to: {output_path} ({len(content)} bytes)")
         success, bytes_written = safe_file_write(output_path, content, is_bytes=False)
-        
+
         if success:
-            log(f"✅ Successfully saved EDL to: {output_path} ({bytes_written} bytes written)")
+            log(f"Successfully saved EDL to: {output_path} ({bytes_written} bytes)")
             return True
-        else:
-            log(f"❌ Failed to write EDL to: {output_path}")
-            if "NFS" in str(output_path):
-                log(f"⚠️ NFS write error detected. Tried multiple path variations.")
-                log(f"⚠️ Solutions:")
-                log(f"   1. Mount NFS share at OS level and add as local source in Kodi")
-                log(f"   2. Use SMB instead of NFS if possible")
-                log(f"   3. Check NFS server export settings (add 'insecure' option)")
-            return False
+        log(f"Failed to write EDL to: {output_path}")
+        return False
     except Exception as e:
-        log(f"❌ Failed to save EDL: {e}")
+        log(f"Failed to save EDL: {e}")
         import traceback
         log(f"Traceback: {traceback.format_exc()}")
         return False
 
+
+# ---------------------------------------------------------------------------
+# Save-format dispatcher
+# ---------------------------------------------------------------------------
+
+# Normalised internal values.
+SAVE_FORMAT_AUTO = "auto"
+SAVE_FORMAT_EDL = "edl"
+SAVE_FORMAT_XML = "xml"
+SAVE_FORMAT_BOTH = "both"
+
+_SAVE_FORMAT_ALIASES = {
+    "auto detect": SAVE_FORMAT_AUTO,
+    "auto": SAVE_FORMAT_AUTO,
+    "edl only": SAVE_FORMAT_EDL,
+    "edl": SAVE_FORMAT_EDL,
+    "chapter xml only": SAVE_FORMAT_XML,
+    "xml": SAVE_FORMAT_XML,
+    "both formats": SAVE_FORMAT_BOTH,
+    "both": SAVE_FORMAT_BOTH,
+}
+
+
+def normalize_save_format(raw):
+    """Map any of the labelenum display values to an internal format key."""
+    if not raw:
+        return SAVE_FORMAT_AUTO
+    return _SAVE_FORMAT_ALIASES.get(str(raw).strip().lower(), SAVE_FORMAT_AUTO)
+
+
+def get_save_format():
+    """Return the configured save format (normalised)."""
+    try:
+        raw = get_addon().getSetting("save_format")
+    except Exception:
+        raw = None
+    return normalize_save_format(raw)
+
+
+def _existing_chapter_path(video_path):
+    base = os.path.splitext(video_path)[0]
+    for suffix in ("-chapters.xml", "_chapters.xml"):
+        path = f"{base}{suffix}"
+        if xbmcvfs.exists(path):
+            return path
+    return None
+
+
+def save_segments(video_path, segments, save_format=None):
+    """Persist ``segments`` for ``video_path`` according to ``save_format``.
+
+    Returns a tuple ``(edl_success, xml_success)``. Either may be False even
+    when the overall write succeeded (for example in "edl" mode ``xml_success``
+    will always be False). The caller is expected to decide what to show the
+    user based on the returned flags.
+    """
+    if save_format is None:
+        save_format = get_save_format()
+    else:
+        save_format = normalize_save_format(save_format)
+
+    segments = segments_chronological(segments)
+
+    edl_success = False
+    xml_success = False
+
+    if save_format == SAVE_FORMAT_BOTH:
+        edl_success = save_edl(video_path, segments)
+        xml_success = save_chapters(video_path, segments)
+    elif save_format == SAVE_FORMAT_XML:
+        xml_success = save_chapters(video_path, segments)
+    elif save_format == SAVE_FORMAT_EDL:
+        edl_success = save_edl(video_path, segments)
+    else:  # auto
+        if _existing_chapter_path(video_path):
+            xml_success = save_chapters(video_path, segments)
+        elif segments and segments[0].source == "xml":
+            xml_success = save_chapters(video_path, segments)
+        else:
+            edl_success = save_edl(video_path, segments)
+
+    return edl_success, xml_success
+
+
+def delete_segment_files(video_path, save_format=None):
+    """Remove any segment files Kodi would otherwise re-use for this video."""
+    if save_format is None:
+        save_format = get_save_format()
+    else:
+        save_format = normalize_save_format(save_format)
+
+    base = os.path.splitext(video_path)[0]
+    all_xml = [f"{base}-chapters.xml", f"{base}_chapters.xml"]
+    all_edl = [f"{base}.edl"]
+
+    if save_format == SAVE_FORMAT_BOTH:
+        candidates = all_xml + all_edl
+    elif save_format == SAVE_FORMAT_XML:
+        candidates = all_xml
+    elif save_format == SAVE_FORMAT_EDL:
+        candidates = all_edl
+    else:  # auto
+        candidates = all_xml + all_edl
+
+    deleted = []
+    for path in candidates:
+        if xbmcvfs.exists(path):
+            try:
+                xbmcvfs.delete(path)
+                deleted.append(path)
+                log(f"Deleted empty segment file: {path}")
+            except Exception as err:
+                log(f"Failed to delete {path}: {err}")
+    return deleted

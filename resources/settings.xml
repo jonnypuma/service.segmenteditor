@@ -7,7 +7,7 @@
         <setting id="predefined_labels" 
                  type="text" 
                  label="Predefined Segment Labels" 
-                 default="Intro,Recap,Credits,Commercial,Ad,Sponsor,Outro,Prologue,Epilogue,Preview,Next Time On,Previously On"
+                 default="Intro,Recap,Credits,Commercial,Ad,Sponsor,Outro,Prologue,Epilogue,Preview,Main,Unknown,Cold_open,Next Time On,Previously On"
                  tooltip="Comma-separated list of predefined labels for segments. These will appear in a dropdown when adding/editing segments." />
         
         <setting id="save_format"
@@ -21,14 +21,14 @@
         <setting id="action_mapping"
                  type="text"
                  label="Action Mapping"
-                 default="4:Segment,5:Intro,6:Ad,7:Commercial,8:Credits,9:Recap,10:Prologue,11:Epilogue"
-                 tooltip="Format: action_type:label. Example: 4:Segment,5:Intro,6:Ad,7:Credits. Action type number is used for EDL file, label is used for chapter XML file." />
+                 default="4:Segment,5:Intro,6:Ad,7:Commercial,8:Credits,9:Recap,10:Prologue,11:Epilogue,12:Main,13:Outro,14:Unknown,15:Preview,16:Sponsor,17:Cold_open"
+                 tooltip="Format: action_type:label (comma-separated). Must match service.skippy edl_action_mapping for compatible .edl files. Labels normalize to lowercase for EDL lookup; use Cold_open for type 17 (cold open)." />
         
         <setting id="set_file_permissions"
                  type="bool"
-                 label="Set File Permissions (666)"
-                 default="true"
-                 tooltip="Attempt to set file permissions to 666 (rw-rw-rw-) after saving. Only works for local filesystem paths, not network paths (nfs://, smb://). For network paths, permissions are controlled by the server." />
+                 label="Add rw permissions to saved files (group + other)"
+                 default="false"
+                 tooltip="When enabled, additively grants read/write permission to group and other on saved segment files. Only applies to local filesystem paths (not nfs:// or smb://) and preserves any existing permission bits. Disabled by default because most installs don't need it and containerised Kodi installs often can't chmod." />
         
         <setting id="enable_fullscreen_overlay"
                  type="bool"
