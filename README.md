@@ -1,3 +1,6 @@
+
+NO LONGER MAINTAINED. EDITOR NOW COMPLETELY EMBEDDED IN THE SKIPPY ADDON WITH MANY NEW FEATURES. USE THAT INSTEAD.
+
 <img width="815" height="810" alt="icon" src="https://github.com/user-attachments/assets/a9f21f0f-75a8-4eed-90a0-64bf8ea6a2eb" />
 
 # Segment Editor - Kodi Addon
